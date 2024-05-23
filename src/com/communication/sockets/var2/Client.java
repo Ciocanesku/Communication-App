@@ -11,8 +11,8 @@ public class Client {
         try {
             Socket socket = new Socket("localhost", 7777);
 
-            DataInputStream inputFromServer = new DataInputStream(socket.getInputStream());
-            DataOutputStream outputToServer = new DataOutputStream(socket.getOutputStream());
+            ObjectOutputStream outputToServer = new ObjectOutputStream(socket.getOutputStream());
+            ObjectInputStream inputFromServer = new ObjectInputStream(socket.getInputStream());
 
             Scanner scanner = new Scanner(System.in);
             while (true) {
@@ -22,9 +22,9 @@ public class Client {
                 System.out.print("Enter password: ");
                 String password = scanner.nextLine();
 
-                // Send username and password to server
-                outputToServer.writeUTF(username);
-                outputToServer.writeUTF(password);
+                // Create and send ClientData object to server
+                ClientData clientData = new ClientData(username, password);
+                outputToServer.writeObject(clientData);
                 outputToServer.flush();
 
                 // Receive authentication result from server
@@ -82,7 +82,7 @@ public class Client {
     }
 
     // Method to receive file from server
-    private static void receiveFile(DataInputStream inputFromServer) throws IOException {
+    private static void receiveFile(ObjectInputStream inputFromServer) throws IOException {
         String fileName = inputFromServer.readUTF();
         long fileSize = inputFromServer.readLong();
         FileOutputStream fileOutputStream = new FileOutputStream("./files/ClientFromServer/client_" + fileName);
@@ -98,7 +98,7 @@ public class Client {
     }
 
     // Method to send file to server
-    private static void sendFile(String filePath, DataOutputStream outputToServer) throws IOException {
+    private static void sendFile(String filePath, ObjectOutputStream outputToServer) throws IOException {
         File file = new File(filePath);
         if (file.exists()) {
             outputToServer.writeUTF("FILE");
@@ -118,4 +118,3 @@ public class Client {
         }
     }
 }
-

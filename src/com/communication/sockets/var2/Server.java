@@ -15,9 +15,9 @@ public class Server {
 
             Socket socket = serverSocket.accept();
 
-            // Create data input and output streams
-            DataInputStream inputFromClient = new DataInputStream(socket.getInputStream());
-            DataOutputStream outputToClient = new DataOutputStream(socket.getOutputStream());
+            // Create object input and output streams
+            ObjectInputStream inputFromClient = new ObjectInputStream(socket.getInputStream());
+            ObjectOutputStream outputToClient = new ObjectOutputStream(socket.getOutputStream());
 
             // Database connection
             Connection connection = DriverManager.getConnection(
@@ -29,43 +29,45 @@ public class Server {
             // Thread for receiving messages from client
             Thread receiveThread = new Thread(() -> {
                 try {
-                    // Read the first message, which is expected to be the username
-                    String username = inputFromClient.readUTF();
-                    System.out.println(username + " connected");
-
-                    // Read the password
-                    String password = inputFromClient.readUTF();
-
-                    // Authenticate user against database
-                    boolean authenticated = authenticateUser(connection, username, password);
-
-                    // Send authentication result to client
-                    synchronized (lock) {
-                        outputToClient.writeBoolean(authenticated);
-                        outputToClient.flush();
-                    }
-
-                    if (authenticated) {
-                        System.out.println("Authentication successful for " + username);
-                    } else {
-                        System.out.println("Authentication failed for " + username);
-                        return; // Exit the thread if authentication fails
-                    }
-
                     while (true) {
-                        String messageType = inputFromClient.readUTF();
-                        if (messageType.equals("TEXT")) {
-                            String msgread = inputFromClient.readUTF();
-                            if (msgread.equals("NO MORE")) {
-                                break;
+                        // Read the ClientData object from the client
+                        ClientData clientData = (ClientData) inputFromClient.readObject();
+                        String username = clientData.getUsername();
+                        String password = clientData.getPassword();
+
+                        System.out.println(username + " connected");
+
+                        // Authenticate user against database
+                        boolean authenticated = authenticateUser(connection, username, password);
+
+                        // Send authentication result to client
+                        synchronized (lock) {
+                            outputToClient.writeBoolean(authenticated);
+                            outputToClient.flush();
+                        }
+
+                        if (authenticated) {
+                            System.out.println("Authentication successful for " + username);
+                        } else {
+                            System.out.println("Authentication failed for " + username);
+                            return; // Exit the thread if authentication fails
+                        }
+
+                        while (true) {
+                            String messageType = inputFromClient.readUTF();
+                            if (messageType.equals("TEXT")) {
+                                String msgread = inputFromClient.readUTF();
+                                if (msgread.equals("NO MORE")) {
+                                    break;
+                                }
+                                // Print the message
+                                System.out.println(username + ": " + msgread);
+                            } else if (messageType.equals("FILE")) {
+                                receiveFile(inputFromClient);
                             }
-                            // Print the message
-                            System.out.println(username + ": " + msgread);
-                        } else if (messageType.equals("FILE")) {
-                            receiveFile(inputFromClient);
                         }
                     }
-                } catch (IOException e) {
+                } catch (IOException | ClassNotFoundException e) {
                     e.printStackTrace();
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
@@ -122,7 +124,7 @@ public class Server {
     }
 
     // Method to receive file from client
-    private static void receiveFile(DataInputStream inputFromClient) throws IOException {
+    private static void receiveFile(ObjectInputStream inputFromClient) throws IOException {
         String fileName = inputFromClient.readUTF();
         long fileSize = inputFromClient.readLong();
         FileOutputStream fileOutputStream = new FileOutputStream("./files/ServerFromClient/server_" + fileName);
@@ -137,9 +139,8 @@ public class Server {
         System.out.println("File received: " + fileName);
     }
 
-
     // Method to send file to client
-    private static void sendFile(String filePath, DataOutputStream outputToClient) throws IOException {
+    private static void sendFile(String filePath, ObjectOutputStream outputToClient) throws IOException {
         File file = new File(filePath);
         if (file.exists()) {
             outputToClient.writeUTF("FILE");
